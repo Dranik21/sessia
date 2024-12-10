@@ -1,4 +1,3 @@
-
 import sys
 import hashlib
 import uuid
@@ -21,9 +20,9 @@ class CreateDriverWindow(QWidget):
 
     def init_ui(self):
         self.setWindowTitle("Создание водителя")
+        self.setGeometry(560, 290, 800, 500)
 
-        # Поля ввода
-        self.guid_field = QLineEdit(str(uuid.uuid4()))  # Генерация GUID
+        self.guid_field = QLineEdit(str(uuid.uuid4()))
         self.guid_field.setReadOnly(True)
         self.last_name_field = QLineEdit()
         self.first_name_field = QLineEdit()
@@ -48,7 +47,7 @@ class CreateDriverWindow(QWidget):
         self.submit_button = QPushButton("Сохранить")
         self.submit_button.clicked.connect(self.validate_data)
 
-        # Компоновка
+
         form_layout = QFormLayout()
         form_layout.addRow("Идентификатор (GUID):", self.guid_field)
         form_layout.addRow("Фамилия*:", self.last_name_field)
@@ -77,7 +76,7 @@ class CreateDriverWindow(QWidget):
                 image = Image.open(file_path)
                 width, height = image.size
                 file_size = os.path.getsize(file_path)
-                if width / height != 3 / 4:
+                if width / height == 3 / 4:
                     raise ValueError("Соотношение сторон изображения должно быть 3:4.")
                 if height < width:
                     raise ValueError("Изображение должно быть вертикальным.")
@@ -107,9 +106,6 @@ class CreateDriverWindow(QWidget):
             errors.append("Телефон должен быть в формате '+7XXXXXXXXXX'.")
         if not self.email_field.text() or not re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", self.email_field.text()):
             errors.append("Email имеет неверный формат.")
-        if not hasattr(self, 'photo_path') or not self.photo_path:
-            errors.append("Фотография обязательна.")
-        if errors:
             QMessageBox.warning(self, "Ошибки", "\n".join(errors))
         else:
             QMessageBox.information(self, "Успех", "Водитель успешно сохранен!")
@@ -134,6 +130,7 @@ class MainApplication(QMainWindow):
     def open_create_driver_window(self):
         self.create_driver_window = CreateDriverWindow()
         self.create_driver_window.show()
+        self.close()
 
 
 class AuthSystem(QMainWindow):
@@ -167,15 +164,8 @@ class AuthSystem(QMainWindow):
         self.setCentralWidget(widget)
         widget.setLayout(layout)
 
-        # Таймер блокировки
         self.lock_timer = QTimer()
         self.lock_timer.timeout.connect(self.unlock)
-
-        # Таймер неактивности
-        self.inactivity_timer = QTimer()
-        self.inactivity_timer.setInterval(60000)  # 1 минута
-        self.inactivity_timer.timeout.connect(self.user_inactive)
-        self.inactivity_timer.start()
 
     def check_credentials(self):
         if self.locked:
@@ -191,7 +181,7 @@ class AuthSystem(QMainWindow):
         password = self.password_input.text()
         hash_input_password = hash(password)
 
-        # Проверка логина и пароля
+
         if username == "inspector" and hash_input_password == hash_password:
             QMessageBox.information(self, "Успех", "Добро пожаловать, inspector!")
             self.reset_attempts()
@@ -217,13 +207,11 @@ class AuthSystem(QMainWindow):
         self.lock_timer.stop()
         self.attempts = 0
 
-    def user_inactive(self):
-        QMessageBox.warning(self, "Неактивность", "Вы были неактивны 1 минуту. Приложение закроется.")
-        self.close()
 
     def open_main_window(self):
         self.main_window = MainApplication()
         self.main_window.show()
+        self.close()
 
 
 if __name__ == "__main__":
