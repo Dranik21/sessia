@@ -1,72 +1,61 @@
-
 import sys
 import hashlib
 import uuid
-import time
 import os
 import re
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QMessageBox, QWidget,
-    QVBoxLayout, QLabel, QLineEdit, QPushButton, QFormLayout, QFileDialog, QCompleter
+    QVBoxLayout, QLabel, QLineEdit, QPushButton, QFormLayout, QFileDialog, QComboBox
 )
-from PyQt5.QtCore import QTimer, Qt
+from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPixmap
 from PIL import Image
 
+# Словарь для хранения данных водителей
+drivers_db = {}
 
-class CreateDriverWindow(QWidget):
-    def __init__(self):
-        super().__init__()
+class DriverLicenseWindow(QWidget):
+    def init(self):
+        super().init()
         self.init_ui()
 
     def init_ui(self):
-        self.setWindowTitle("Создание водителя")
+        self.setWindowTitle("Регистрация ВУ")
 
-        # Поля ввода
-        self.guid_field = QLineEdit(str(uuid.uuid4()))  # Генерация GUID
-        self.guid_field.setReadOnly(True)
-        self.last_name_field = QLineEdit()
-        self.first_name_field = QLineEdit()
-        self.middle_name_field = QLineEdit()
-        self.passport_field = QLineEdit()
-        self.passport_field.setPlaceholderText("Серия и номер (XXXX XXXXXX)")
-        self.registration_address_field = QLineEdit()
-        self.living_address_field = QLineEdit()
-        self.workplace_field = QLineEdit()
-        self.position_field = QLineEdit()
-        self.phone_field = QLineEdit()
-        self.phone_field.setPlaceholderText("+7XXXXXXXXXX")
-        self.email_field = QLineEdit()
-        self.photo_path_label = QLabel("Фото не выбрано")
-        self.photo_preview = QLabel()
-        self.photo_preview.setFixedSize(100, 133)
-        self.photo_preview.setStyleSheet("border: 1px solid black;")
-        self.photo_preview.setAlignment(Qt.AlignCenter)
-        self.notes_field = QLineEdit()
+        # Поля ввода для ВУ
+        self.driver_id_field = QLineEdit()  # Ввод идентификатора водителя
+        self.driver_id_field.setPlaceholderText("Идентификатор водителя (GUID)")
+        self.license_number_field = QLineEdit()  # Номер удостоверения
+        self.license_number_field.setPlaceholderText("Номер удостоверения")
+        self.issue_date_field = QLineEdit()  # Дата выдачи
+        self.expiry_date_field = QLineEdit()  # Дата окончания действия
+        self.issuing_authority_field = QLineEdit()  # Орган, выдавший удостоверение
+        self.vehicle_categories_field = QLineEdit()  # Категории транспортных средств
+        self.driver_photo_label = QLabel("Фото не выбрано")  # Фото водителя
+        self.driver_photo_preview = QLabel()
+        self.driver_photo_preview.setFixedSize(100, 133)
+        self.driver_photo_preview.setStyleSheet("border: 1px solid black;")
+        self.driver_photo_preview.setAlignment(Qt.AlignCenter)
         self.choose_photo_button = QPushButton("Выбрать фото")
         self.choose_photo_button.clicked.connect(self.choose_photo)
-        self.submit_button = QPushButton("Сохранить")
-        self.submit_button.clicked.connect(self.validate_data)
 
-        # Компоновка
+        # Кнопка для сохранения данных
+        self.submit_button = QPushButton("Сохранить")
+        self.submit_button.clicked.connect(self.save_driver_license)
+
+        # Компоновка формы
         form_layout = QFormLayout()
-        form_layout.addRow("Идентификатор (GUID):", self.guid_field)
-        form_layout.addRow("Фамилия*:", self.last_name_field)
-        form_layout.addRow("Имя*:", self.first_name_field)
-        form_layout.addRow("Отчество*:", self.middle_name_field)
-        form_layout.addRow("Паспорт (серия и номер)*:", self.passport_field)
-        form_layout.addRow("Адрес регистрации*:", self.registration_address_field)
-        form_layout.addRow("Адрес проживания*:", self.living_address_field)
-        form_layout.addRow("Место работы:", self.workplace_field)
-        form_layout.addRow("Должность:", self.position_field)
-        form_layout.addRow("Мобильный телефон*:", self.phone_field)
-        form_layout.addRow("Email*:", self.email_field)
+        form_layout.addRow("Идентификатор водителя (GUID):", self.driver_id_field)
+        form_layout.addRow("Номер удостоверения:", self.license_number_field)
+        form_layout.addRow("Дата выдачи:", self.issue_date_field)
+        form_layout.addRow("Дата окончания действия:", self.expiry_date_field)
+        form_layout.addRow("Орган, выдавший удостоверение:", self.issuing_authority_field)
+        form_layout.addRow("Категории транспортных средств:", self.vehicle_categories_field)
         photo_layout = QVBoxLayout()
-        photo_layout.addWidget(self.photo_preview)
-        photo_layout.addWidget(self.photo_path_label)
+        photo_layout.addWidget(self.driver_photo_preview)
+        photo_layout.addWidget(self.driver_photo_label)
         photo_layout.addWidget(self.choose_photo_button)
-        form_layout.addRow("Фотография*:", photo_layout)
-        form_layout.addRow("Замечания:", self.notes_field)
+        form_layout.addRow("Фото водителя:", photo_layout)
         form_layout.addRow("", self.submit_button)
         self.setLayout(form_layout)
 
@@ -75,74 +64,132 @@ class CreateDriverWindow(QWidget):
         if file_path:
             try:
                 image = Image.open(file_path)
-                width, height = image.size
-                file_size = os.path.getsize(file_path)
-                if width / height != 3 / 4:
-                    raise ValueError("Соотношение сторон изображения должно быть 3:4.")
-                if height < width:
-                    raise ValueError("Изображение должно быть вертикальным.")
-                if file_size > 2 * 1024 * 1024:
-                    raise ValueError("Размер изображения не должен превышать 2 МБ.")
-                self.photo_path_label.setText(f"Фото выбрано: {os.path.basename(file_path)}")
-                self.photo_preview.setPixmap(QPixmap(file_path).scaled(100, 133, Qt.KeepAspectRatio))
+                self.driver_photo_label.setText(f"Фото выбрано: {os.path.basename(file_path)}")
+                self.driver_photo_preview.setPixmap(QPixmap(file_path).scaled(100, 133, Qt.KeepAspectRatio))
                 self.photo_path = file_path
             except Exception as e:
                 QMessageBox.warning(self, "Ошибка", str(e))
 
-    def validate_data(self):
-        errors = []
-        if not self.last_name_field.text():
-            errors.append("Фамилия обязательна.")
-        if not self.first_name_field.text():
-            errors.append("Имя обязательно.")
-        if not self.middle_name_field.text():
-            errors.append("Отчество обязательно.")
-        if not self.passport_field.text() or not re.match(r"^\d{4}\s\d{6}$", self.passport_field.text()):
-            errors.append("Паспорт должен быть в формате 'XXXX XXXXXX'.")
-        if not self.registration_address_field.text():
-            errors.append("Адрес регистрации обязателен.")
-        if not self.living_address_field.text():
-            errors.append("Адрес проживания обязателен.")
-        if not self.phone_field.text() or not re.match(r"^\+7\d{10}$", self.phone_field.text()):
-            errors.append("Телефон должен быть в формате '+7XXXXXXXXXX'.")
-        if not self.email_field.text() or not re.match(r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$", self.email_field.text()):
-            errors.append("Email имеет неверный формат.")
-        if not hasattr(self, 'photo_path') or not self.photo_path:
-            errors.append("Фотография обязательна.")
-        if errors:
-            QMessageBox.warning(self, "Ошибки", "\n".join(errors))
-        else:
-            QMessageBox.information(self, "Успех", "Водитель успешно сохранен!")
+    def save_driver_license(self):
+        driver_id = self.driver_id_field.text()
+        license_number = self.license_number_field.text()
+        issue_date = self.issue_date_field.text()
+        expiry_date = self.expiry_date_field.text()
+        issuing_authority = self.issuing_authority_field.text()
+        vehicle_categories = self.vehicle_categories_field.text()
 
+        if not driver_id or not license_number or not issue_date or not expiry_date or not issuing_authority or not vehicle_categories:
+            QMessageBox.warning(self, "Ошибка", "Все поля должны быть заполнены!")
+            return
+
+        # Проверка существования водителя в базе
+        if driver_id not in drivers_db:
+            QMessageBox.warning(self, "Ошибка", "Водитель с таким ID не найден. Добавьте его в систему.")
+            return
+            # Добавляем данные ВУ для водителя
+            drivers_db[driver_id]["licenses"].append({
+                "license_number": license_number,
+                "issue_date": issue_date,
+                "expiry_date": expiry_date,
+                "issuing_authority": issuing_authority,
+                "vehicle_categories": vehicle_categories,
+                "photo_path": getattr(self, 'photo_path', None)
+            })
+
+            QMessageBox.information(self, "Успех", "ВУ успешно зарегистрировано!")
+
+class AddDriverWindow(QWidget):
+    def init(self):
+        super().init()
+        self.init_ui()
+
+    def init_ui(self):
+        self.setWindowTitle("Добавление водителя")
+
+        # Поля ввода
+        self.driver_id_field = QLineEdit(str(uuid.uuid4()))  # Генерация нового GUID для водителя
+        self.last_name_field = QLineEdit()
+        self.first_name_field = QLineEdit()
+        self.middle_name_field = QLineEdit()
+        self.dob_field = QLineEdit()  # Дата рождения водителя
+        self.photo_field = QLabel("Фото не выбрано")
+        self.choose_photo_button = QPushButton("Выбрать фото")
+        self.choose_photo_button.clicked.connect(self.choose_photo)
+        self.submit_button = QPushButton("Сохранить")
+        self.submit_button.clicked.connect(self.save_driver)
+
+        # Компоновка
+        form_layout = QFormLayout()
+        form_layout.addRow("Идентификатор водителя (GUID):", self.driver_id_field)
+        form_layout.addRow("Фамилия:", self.last_name_field)
+        form_layout.addRow("Имя:", self.first_name_field)
+        form_layout.addRow("Отчество:", self.middle_name_field)
+        form_layout.addRow("Дата рождения:", self.dob_field)
+        form_layout.addRow("Фото водителя:", self.photo_field)
+        form_layout.addRow("", self.submit_button)
+        self.setLayout(form_layout)
+
+    def choose_photo(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Выберите фотографию", "", "Images (*.jpg *.png)")
+        if file_path:
+            self.photo_field.setText(f"Фото выбрано: {os.path.basename(file_path)}")
+            self.photo_path = file_path
+
+    def save_driver(self):
+        driver_id = self.driver_id_field.text()
+        last_name = self.last_name_field.text()
+        first_name = self.first_name_field.text()
+        middle_name = self.middle_name_field.text()
+        dob = self.dob_field.text()
+
+        if not last_name or not first_name or not middle_name or not dob:
+            QMessageBox.warning(self, "Ошибка", "Все поля должны быть заполнены!")
+            return
+
+        # Добавляем водителя в базу данных
+        drivers_db[driver_id] = {
+            "last_name": last_name,
+            "first_name": first_name,
+            "middle_name": middle_name,
+            "dob": dob,
+            "licenses": []  # Список ВУ для водителя
+        }
+
+        QMessageBox.information(self, "Успех", "Водитель успешно добавлен!")
 
 class MainApplication(QMainWindow):
-    def __init__(self):
-        super().__init__()
+    def init(self):
+        super().init()
         self.setWindowTitle("Главное окно")
         self.setGeometry(810, 440, 300, 200)
         self.init_ui()
 
     def init_ui(self):
-        create_driver_button = QPushButton("Создать водителя")
-        create_driver_button.clicked.connect(self.open_create_driver_window)
+        add_driver_button = QPushButton("Добавить водителя")
+        add_driver_button.clicked.connect(self.open_add_driver_window)
+        register_license_button = QPushButton("Зарегистрировать ВУ")
+        register_license_button.clicked.connect(self.open_register_license_window)
         layout = QVBoxLayout()
-        layout.addWidget(create_driver_button)
+        layout.addWidget(add_driver_button)
+        layout.addWidget(register_license_button)
         container = QWidget()
         container.setLayout(layout)
         self.setCentralWidget(container)
 
-    def open_create_driver_window(self):
-        self.create_driver_window = CreateDriverWindow()
-        self.create_driver_window.show()
+    def open_add_driver_window(self):
+        self.add_driver_window = AddDriverWindow()
+        self.add_driver_window.show()
 
+    def open_register_license_window(self):
+        self.register_license_window = DriverLicenseWindow()
+        self.register_license_window.show()
 
 class AuthSystem(QMainWindow):
-    def __init__(self):
-        super().__init__()
+    def init(self):
+        super().init()
         self.attempts = 0
         self.locked = False
         self.lock_time = 60  # блокировка на 60 секунд
-        self.last_activity_time = time.time()
         self.setWindowTitle("Авторизация")
         self.setGeometry(810, 440, 300, 200)
         self.initUI()
@@ -167,63 +214,18 @@ class AuthSystem(QMainWindow):
         self.setCentralWidget(widget)
         widget.setLayout(layout)
 
-        # Таймер блокировки
-        self.lock_timer = QTimer()
-        self.lock_timer.timeout.connect(self.unlock)
-
-        # Таймер неактивности
-        self.inactivity_timer = QTimer()
-        self.inactivity_timer.setInterval(60000)  # 1 минута
-        self.inactivity_timer.timeout.connect(self.user_inactive)
-        self.inactivity_timer.start()
-
     def check_credentials(self):
-        if self.locked:
-            QMessageBox.warning(self, "Ошибка", "У вас слишком много неудачных попыток входа. Попробуйте через 1 минуту.")
-            return
-
-        def hash(text):
-            return hashlib.sha256(text.encode()).hexdigest()
-
-        hash_password = '98fe442255035a1459bb5b86fda03d7c34c23d512b1b5bf3a5ecb7a802601895'
-
         username = self.username_input.text()
         password = self.password_input.text()
-        hash_input_password = hash(password)
-
-        # Проверка логина и пароля
-        if username == "inspector" and hash_input_password == hash_password:
-            QMessageBox.information(self, "Успех", "Добро пожаловать, inspector!")
-            self.reset_attempts()
+        if username == "inspector" and password == "12345":
             self.open_main_window()
         else:
-            self.attempts += 1
-            self.last_activity_time = time.time()
             QMessageBox.warning(self, "Ошибка", "Неверный логин или пароль!")
-            if self.attempts >= 3:
-                self.locked = True
-                self.login_button.setEnabled(False)
-                self.lock_timer.start(60000)  # блокировка на 60 секунд
-                QMessageBox.warning(self, "Блокировка", "Вход временно заблокирован. Попробуйте через 1 минуту.")
-
-    def reset_attempts(self):
-        self.attempts = 0
-        self.locked = False
-        self.login_button.setEnabled(True)
-
-    def unlock(self):
-        self.locked = False
-        self.login_button.setEnabled(True)
-        self.lock_timer.stop()
-        self.attempts = 0
-
-    def user_inactive(self):
-        QMessageBox.warning(self, "Неактивность", "Вы были неактивны 1 минуту. Приложение закроется.")
-        self.close()
 
     def open_main_window(self):
         self.main_window = MainApplication()
         self.main_window.show()
+        self.close()  # Закрытие окна авторизации
 
 
 if __name__ == "__main__":
